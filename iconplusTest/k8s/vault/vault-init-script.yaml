@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-init-script
+  namespace: devops
+data:
+  init.sh: |
+    #!/bin/sh
+    echo "[INIT] Running Vault auto-init..."
+    if [ ! -f /vault/data/init.json ]; then
+      vault operator init -key-shares=1 -key-threshold=1 -format=json > /vault/data/init.json
+      UNSEAL_KEY=$(jq -r ".unseal_keys_b64[0]" /vault/data/init.json)
+      ROOT_TOKEN=$(jq -r ".root_token" /vault/data/init.json)
+      echo "[INIT] Unsealing Vault..."
+      vault operator unseal $UNSEAL_KEY
+      echo "[INIT] Login root token..."
+      vault login $ROOT_TOKEN
+    else
+      echo "[INIT] Vault already initialized."
+    fi
+

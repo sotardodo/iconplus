@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel
+  namespace: devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: laravel
+  template:
+    metadata:
+      labels:
+        app: laravel
+    spec:
+      containers:
+        - name: laravel
+          image: sotar12/laravel:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PORT
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_DATABASE
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: laravel-service
+  namespace: devops
+spec:
+  selector:
+    app: laravel
+  ports:
+    - protocol: TCP
+      port: 8001
+      targetPort: 8000
+  type: NodePort
+

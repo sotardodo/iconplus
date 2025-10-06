@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goapi
+  namespace: devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goapi
+  template:
+    metadata:
+      labels:
+        app: goapi
+    spec:
+      containers:
+        - name: goapi
+          image: sotar12/go:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_HOST
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PORT
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_DATABASE
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: goapi-service
+  namespace: devops
+spec:
+  selector:
+    app: goapi
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: NodePort
+

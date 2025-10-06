@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+    environment {
+        REGISTRY = "harbor.example.com/devops"
+        KUBECONFIG = credentials('kubeconfig-cred')
+    }
+    stages {
+        stage('Build Laravel') {
+            steps {
+                script {
+                    def tag = "laravel-${env.BUILD_NUMBER}"
+                    sh """
+                      docker build -t $REGISTRY/laravel:$tag ./laravel
+                      docker push $REGISTRY/laravel:$tag
+                    """
+                    env.LARAVEL_TAG = tag
+                }
+            }
+        }
+        stage('Build Go API') {
+            steps {
+                script {
+                    def tag = "goapi-${env.BUILD_NUMBER}"
+                    sh """
+                      docker build -t $REGISTRY/goapi:$tag ./go
+                      docker push $REGISTRY/goapi:$tag
+                    """
+                    env.GO_TAG = tag
+                }
+            }
+        }
+        stage('Build Frontend') {
+            steps {
+                script {
+                    def tag = "frontend-${env.BUILD_NUMBER}"
+                    sh """
+                      docker build -t $REGISTRY/frontend:$tag ./frontend
+                      docker push $REGISTRY/frontend:$tag
+                    """
+                    env.FRONTEND_TAG = tag
+                }
+            }
+        }
+        stage('Deploy to K8s') {
+            steps {
+                sh """
+                  sed -i "s|REPLACE_TAG|$LARAVEL_TAG|g" k8s/laravel-deployment.yaml
+                  sed -i "s|REPLACE_TAG|$GO_TAG|g" k8s/go-deployment.yaml
+                  sed -i "s|REPLACE_TAG|$FRONTEND_TAG|g" k8s/frontend-deployment.yaml
+                  kubectl apply -f k8s/
+                """
+            }
+        }
+    }
+}
+

@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-config
+  namespace: devops
+data:
+  vault-agent-config.hcl: |
+    auto_auth {
+      method "token" {
+        mount_path = "auth/token"
+        config = {
+          token = "root"
+        }
+      }
+      sink "file" {
+        config = {
+          path = "/home/vault/.vault-token"
+        }
+      }
+    }
+
+    template {
+      source      = "/vault/secrets/mysql.ctmpl"
+      destination = "/vault/secrets/mysql.env"
+    }
+

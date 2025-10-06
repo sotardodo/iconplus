@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+    environment {
+        REGISTRY = "sotar12"
+        NAMESPACE = "devops"
+    }
+    stages {
+        stage('Build Images') {
+            parallel {
+                stage('Frontend') {
+                    steps {
+                        sh "docker build -t $REGISTRY/frontend:latest ./frontend"
+                    }
+                }
+                stage('Go API') {
+                    steps {
+                        sh "docker build -t $REGISTRY/goapi:latest ./go"
+                    }
+                }
+                stage('Laravel API') {
+                    steps {
+                        sh "docker build -t $REGISTRY/laravel:latest ./laravel"
+                    }
+                }
+            }
+        }
+        stage('Push Images') {
+            steps {
+                sh "docker login -u $DOCKER_USER -p $DOCKER_PASS"
+                sh "docker push $REGISTRY/frontend:latest"
+                sh "docker push $REGISTRY/goapi:latest"
+                sh "docker push $REGISTRY/laravel:latest"
+            }
+        }
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh "kubectl apply -n $NAMESPACE -f k8s/"
+            }
+        }
+        stage('Health Check') {
+            steps {
+                sh "kubectl rollout status deployment/frontend -n $NAMESPACE"
+                sh "kubectl rollout status deployment/goapi -n $NAMESPACE"
+                sh "kubectl rollout status deployment/laravel -n $NAMESPACE"
+            }
+        }
+    }
+}
