@@ -1,24 +1,46 @@
-# Stage 1: composer install
-FROM php:8.2-fpm-alpine AS vendor
+# =========================
+# Stage 1 - Build dependencies
+# =========================
+FROM composer:2 AS build
+
+WORKDIR /app
+
+# Copy composer files and source
+COPY composer.json composer.lock ./
+COPY . .
+
+# Install dependencies
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+# Generate APP_KEY if missing
+# (we need PHP CLI, so run artisan command after vendor installed)
+RUN if ! grep -q "APP_KEY=" .env || [ -z "$(grep 'APP_KEY=' .env | cut -d '=' -f2)" ]; then \
+      echo "🛠 Generating Laravel APP_KEY ..."; \
+      php artisan key:generate --force; \
+    else \
+      echo "✅ APP_KEY already exists, skipping generation."; \
+    fi
+
+# =========================
+# Stage 2 - Runtime
+# =========================
+FROM php:8.2-fpm-alpine
+
 WORKDIR /var/www/html
+
+# Install PHP extensions
 RUN apk add --no-cache bash git unzip libzip-dev icu-dev oniguruma-dev \
     && docker-php-ext-install pdo_mysql intl opcache zip
-COPY composer.json composer.lock ./
-RUN php -r "copy('https://getcomposer.org/installer','composer-setup.php');" \
-    && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
-    && rm composer-setup.php
-ENV COMPOSER_ALLOW_SUPERUSER=1
-RUN composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist --ignore-platform-reqs
 
-# Stage 2: app image
-FROM php:8.2-fpm-alpine
-WORKDIR /var/www/html
-RUN apk add --no-cache bash libzip
-# copy vendor
-COPY --from=vendor /var/www/html/vendor ./vendor
-# copy app
-COPY . .
-# set permissions (adjust as needed)
+# Copy app (including vendor from previous stage)
+COPY --from=build /app ./ 
+
+# Set permission
 RUN chown -R www-data:www-data /var/www/html
-EXPOSE 9000
-CMD ["php-fpm"]
+
+# Expose port and start Laravel
+EXPOSE 8001
+
+# Run Laravel server
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8001"]
+

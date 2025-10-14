@@ -50,7 +50,7 @@ func getEnv(key, defaultValue string) string {
 func getDBConfig() (driver, user, password, name, host, port string) {
 	driver = getEnv("DB_DRIVER", "mysql")
 	user = getEnv("DB_USER", "root")
-	password = getEnv("DB_PASSWORD", "")
+	password = getEnv("DB_PASSWORD", "apppassword")
 	name = getEnv("DB_NAME", "laravel")
 	host = getEnv("DB_HOST", "127.0.0.1")
 	port = getEnv("DB_PORT", "3306")
