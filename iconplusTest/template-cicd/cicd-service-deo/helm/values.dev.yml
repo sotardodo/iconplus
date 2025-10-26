@@ -1,0 +1,154 @@
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: stable
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets:
+  - name: gcr
+
+serviceAccount:
+  create: true
+  name: ""
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+readinessProbe: {}
+  # httpGet:
+  #   path: /healthz
+  #   port: http
+
+
+livenessProbe: {}
+  # httpGet:
+  #   path: /healthz
+  #   port: http
+
+
+lifecycle: {}
+  # postStart:
+  #   exec:
+  #     command: ["/bin/bash", "-c", "composer install && mkdir -p /var/www/html/storage/{logs,app/public,app,framework/cache,framework/sessions,framework/testing,framework/views,framework}  && chmod -R 777 /var/www/html/storage"]
+
+
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+  # nodeSelector:
+  #   disktype: ssd
+
+tolerations: []
+
+env: []
+  # - name: HTTP_PROXY
+  #   value: 127.0.0.1
+
+hostAliases: []
+  # - ip: '127.0.0.1' 
+  #   hostnames:
+  #   - 'localhost'
+
+affinity: {}
+  # nodeAffinity:
+  #   requiredDuringSchedulingIgnoredDuringExecution:
+  #     nodeSelectorTerms:
+  #     - matchExpressions:
+  #       - key: pertamina
+  #         operator: In
+  #         values: 
+  #         - "true"
+
+# Port and Services
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      containerPort: 80
+      protocol: TCP
+
+# Ingress
+
+# When Kubernetes use Istio 
+virtualservice:
+  enabled: true
+  port: 80
+  match: []
+  hosts:
+    - web-thoni.tcd-dev.id
+  gateways:
+    - gateway/http-gateway
+    - gateway/https-gateway
+
+
+# WHen Kubernetes use Nginx Kubernetes Ingress
+
+ingress:
+  enabled: false
+  annotations: 
+    kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: api-brimola.ddb.bri.co.id
+      port: http
+      path: /
+
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+
+# Configuration and Volume
+
+secrets:
+  - create: true
+    name: secret-backend-bayari-db-secret
+    file: .env
+    subPath: .env
+    mountPath: /var/www/html/.env
+  
+
+configmaps:
+  - create: true
+    name: nginx-config
+    file: nginx.conf
+    subPath: nginx.conf
+    mountPath: /etc/nginx/nginx.conf
+  - create: true
+    name: nginx-virtualservice
+    file: default.conf
+    subPath: default.conf
+    mountPath: /etc/nginx/sites-enabled/default
+  
+persistences:
+  volumeClaims:
+  - create: true
+    name: app-logs
+    storageClass: ssd 
+    accessModes: 
+      - ReadWriteMany
+    size: 20Gi
+    mountPath: /var/www/html/application/logs
+    subPath: logs
+
+

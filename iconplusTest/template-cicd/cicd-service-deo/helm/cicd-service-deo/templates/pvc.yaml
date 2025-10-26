@@ -1,0 +1,21 @@
+{{- $fullName := include "cicd-service-deo.fullname" . -}}
+{{- $labels := include "cicd-service-deo.labels" .  }}
+{{- $namespace := .Values.namespace -}}
+{{- range $volumeClaim := .Values.persistences.volumeClaims}}
+{{- if $volumeClaim.create}}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: "pvc-{{ $fullName }}-{{ $volumeClaim.name }}"
+  labels:
+{{ $labels | indent 4 }}
+spec:
+  storageClassName: {{ $volumeClaim.storageClass }}
+  accessModes:
+  {{- toYaml $volumeClaim.accessModes | nindent 4 }}  
+  resources:
+    requests:
+      storage: {{ $volumeClaim.size }}
+---
+{{- end }}
+{{- end }}

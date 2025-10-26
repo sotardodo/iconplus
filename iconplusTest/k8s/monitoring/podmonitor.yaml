@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: devops-podmonitor
+  namespace: devops
+  labels:
+    team: devops
+spec:
+  namespaceSelector:
+    matchNames:
+      - devops
+  selector: {}                      # ✅ Tangkap SEMUA pod dalam namespace devops
+  podMetricsEndpoints:
+    # Laravel (port 8001)
+    - port: http-laravel
+      path: /
+      interval: 15s
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+
+    # Go API (port 8080)
+    - port: http-goapi
+      path: /
+      interval: 15s
+      scheme: http
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+
+    # Frontend (port 3000)
+    - port: http-frontend
+      path: /
+      interval: 15s
+      scheme: http
+
+    # MySQL (port 3306) — tidak expose HTTP, tapi tetap disertakan
+    - port: mysql
+      interval: 30s
+      scheme: tcp

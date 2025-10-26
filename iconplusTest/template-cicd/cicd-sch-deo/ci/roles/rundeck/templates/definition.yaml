@@ -1,0 +1,40 @@
+- defaultTab: nodes
+  description: ''
+  executionEnabled: {{ item.enabled }}
+  loglevel: INFO
+  name: {{ item.name }}
+  nodeFilterEditable: false
+  notifyAvgDurationThreshold: null
+  schedule:
+    {{ item.schedule.cron | to_nice_yaml(indent=4, width=5000) | indent(4) }}
+  scheduleEnabled: {{ item.schedule.enabled }}
+  sequence:
+    commands:
+    - script: |-
+        echo "Running ..."
+        echo "This job activity recorded in /var/lib/rundeck/logs/rundeck/@job.project@/job/@job.id@/logs/@job.execid@.rdlog"
+        echo "Please ALWAYS keep that file"
+    - script: |-
+        {{ lookup('file', tempLocation + item.name + '.sh') | indent(8) }}
+    - script: |-
+        cd /var/lib/rundeck/jobs/{{ rundeck.project_name }}-{{ envDeployment }}/{{ item.name }}/
+
+        {% for command in item.sequence.commands %}
+
+          docker run --name {{ item.name }}-{{ envDeployment }} --rm \
+          {% for dockerArgument in item.docker.extraArgs %}
+          {{ "--" + dockerArgument.name + " " +  dockerArgument.value }} \
+          {% endfor %}
+          {% for config in project.configFiles %}
+            {{ "-v $PWD/config/" +  config.dest + ":" + config.mountPath}} \
+          {% endfor %}
+          {% for volume in item.volumes %}
+            {{ "-v $PWD/volumes/" +  volume.name + ":" + volume.mountPath}} \
+          {% endfor %}
+          {{ project.main_container.image }}:{{ project.main_container.tag }} {{ command.script | trim }}
+
+        {% endfor %}
+    
+    keepgoing: {{ item.sequence.keepgoing }}
+    strategy: {{ item.sequence.strategy }}
+  timeZone: {{ item.timeZone }}

@@ -20,23 +20,40 @@ spec:
             - secretRef:
                 name: mysql-secret
           ports:
-            - containerPort: 3306
+            - name: mysql              # ✅ beri nama port agar Prometheus bisa autodiscover
+              containerPort: 3306
           volumeMounts:
             - name: mysql-pv-storage
               mountPath: /var/lib/mysql
+          readinessProbe:              # ✅ tambahan untuk health check
+            exec:
+              command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
+            initialDelaySeconds: 15
+            timeoutSeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:               # ✅ pastikan MySQL sehat
+            exec:
+              command: ["mysqladmin", "ping", "-h", "127.0.0.1"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
       volumes:
         - name: mysql-pv-storage
-          emptyDir: {}   # sementara (data hilang kalau pod dihapus)
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: mysql-service
   namespace: devops
+  labels:
+    app: mysql
 spec:
   type: ClusterIP
   selector:
     app: mysql
   ports:
-    - port: 3306
-      targetPort: 3306
+    - name: mysql
+      port: 3306
+      targetPort: mysql

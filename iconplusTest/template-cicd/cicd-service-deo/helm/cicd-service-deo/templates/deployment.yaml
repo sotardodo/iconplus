@@ -1,0 +1,125 @@
+{{- $fullname := include "cicd-service-deo.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cicd-service-deo.fullname" . }}
+  labels:
+{{ include "cicd-service-deo.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "cicd-service-deo.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        timestamp: "{{ now  | date "20060102150405"}}"
+      labels:
+        app.kubernetes.io/name: {{ include "cicd-service-deo.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ template "cicd-service-deo.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      hostAliases: []
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- range $port := .Values.service.ports }}
+          ports:
+            - name: {{ $port.name }}
+              containerPort: {{ $port.containerPort }}
+              protocol: {{ $port.protocol }}
+          {{- end }}
+          {{- if .Values.livenessProbe}}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe}}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- end }}
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+          {{- if .Values.lifecycle}}
+          lifecycle:
+            {{- toYaml .Values.lifecycle | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if or .Values.secrets .Values.configmaps .Values.persistences.enabled}}
+          volumeMounts:
+          {{- range $secret:= .Values.secrets}}
+            - name: {{ $secret.name }}
+              mountPath: {{$secret.mountPath }}
+            {{- if $secret.subPath}}
+              subPath: {{$secret.subPath }}
+            {{- end }}
+          {{- end }}
+          {{- range $configmap:= .Values.configmaps}}
+            - name: {{ $configmap.name }}
+              mountPath: {{$configmap.mountPath }}
+            {{- if $configmap.subPath}}
+              subPath: {{$configmap.subPath }}
+            {{- end }}
+          {{- end }}
+          {{- range $pvc:= .Values.persistences.volumeClaims}}
+            - name: {{ $pvc.name }}
+              mountPath: {{$pvc.mountPath }}
+            {{- if $pvc.subPath}}
+              subPath: {{$pvc.subPath }}
+            {{- end }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      volumes:
+      {{- if or .Values.secrets .Values.configmaps .Values.persistences.enabled}}
+      {{- range $secret:= .Values.secrets}}
+        - name: {{ $secret.name }}
+          secret: 
+          {{- if $secret.create }}
+            secretName: "{{ $fullname }}-{{ $secret.name }}"
+          {{- else }}
+            secretName: "{{ $secret.name }}"
+          {{- end }}
+      {{- end }}
+      {{- range $configmap:= .Values.configmaps}}
+        - name: {{ $configmap.name }}
+          configMap:
+          {{- if $configmap.create}}
+            name: "{{ $fullname }}-{{ $configmap.name }}"
+          {{- else}}
+            name: "{{ $configmap.name }}"
+          {{ end }}
+      {{- end }}
+      {{- range $pvc:= .Values.persistences.volumeClaims}}
+        - name: {{ $pvc.name }}
+          persistentVolumeClaim:
+          {{- if $pvc.create }}
+            claimName: "pvc-{{ $fullname }}-{{ $pvc.name }}"
+          {{- else  }}
+            claimName: "{{ $pvc.name }}"
+          {{- end }}
+      {{- end }}
+      {{- else }}
+        []
+      {{- end }}
