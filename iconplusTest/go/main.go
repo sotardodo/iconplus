@@ -9,7 +9,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/joho/godotenv"
 	_ "github.com/go-sql-driver/mysql"
@@ -23,8 +22,8 @@ type Product struct {
 	Price       float64 `json:"price"`
 	Quantity    int     `json:"quantity"`
 	Category    string  `json:"category"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	CreatedAt   *string `json:"created_at"`
+	UpdatedAt   *string `json:"updated_at"`
 }
 
 // APIResponse represents the standard API response format
@@ -36,10 +35,9 @@ type APIResponse struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-// Database connection
 var db *sql.DB
 
-// 🔹 CORS ADDED: Middleware sederhana
+// Middleware CORS
 func withCORS(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -54,7 +52,7 @@ func withCORS(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Database configuration functions
+// Load env or fallback
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -62,47 +60,38 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+// Get database configuration
 func getDBConfig() (driver, user, password, name, host, port string) {
 	driver = getEnv("DB_DRIVER", "mysql")
-	user = getEnv("DB_USER", "root")
-	password = getEnv("DB_PASSWORD", "")
+	user = getEnv("DB_USER", "sotar")
+	password = getEnv("DB_PASSWORD", "sotar123")
 	name = getEnv("DB_NAME", "laravel")
 	host = getEnv("DB_HOST", "127.0.0.1")
 	port = getEnv("DB_PORT", "3306")
 	return
 }
 
-// Initialize database connection
+// Initialize DB
 func initDB() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using default environment variables")
-	}
+	godotenv.Load()
 
 	var err error
 	driver, user, password, name, host, port := getDBConfig()
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", user, password, host, port, name)
 
-	log.Printf("Connecting to database: %s@%s:%s/%s", user, host, port, name)
+	log.Printf("Connecting to DB: %s@%s:%s/%s", user, host, port, name)
 
 	db, err = sql.Open(driver, dsn)
-	if err != nil {
-		log.Printf("Error opening database: %v", err)
-		log.Println("Continuing without database connection...")
-		return
-	}
-
-	err = db.Ping()
-	if err != nil {
-		log.Printf("Error connecting to database: %v", err)
-		log.Println("Continuing without database connection...")
+	if err != nil || db.Ping() != nil {
+		log.Println("⚠ DB not connected — using mock data")
 		db = nil
 		return
 	}
 
-	log.Println("Successfully connected to MySQL database")
+	log.Println("✅ Connected to MySQL")
 }
 
-// Create sample data if database is connected
+// Sample products creation
 func createSampleData() {
 	if db == nil {
 		return
@@ -116,54 +105,20 @@ func createSampleData() {
 		price DECIMAL(10,2) NOT NULL,
 		quantity INT DEFAULT 0,
 		category VARCHAR(255),
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		created_at TIMESTAMP NULL DEFAULT NULL,
+		updated_at TIMESTAMP NULL DEFAULT NULL
 	)`
 
-	_, err := db.Exec(createTableQuery)
-	if err != nil {
-		log.Printf("Error creating table: %v", err)
-		return
-	}
-
-	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM products").Scan(&count)
-	if err != nil {
-		log.Printf("Error checking product count: %v", err)
-		return
-	}
-
-	if count > 0 {
-		log.Println("Products already exist in database")
-		return
-	}
-
-	sampleProducts := []Product{
-		{Name: "Laptop Pro 15", Description: "High-performance laptop", Price: 1299.99, Quantity: 25, Category: "Electronics"},
-		{Name: "Wireless Headphones", Description: "Noise-cancelling wireless headphones", Price: 199.99, Quantity: 50, Category: "Electronics"},
-	}
-
-	for _, product := range sampleProducts {
-		insertQuery := `
-		INSERT INTO products (name, description, price, quantity, category) 
-		VALUES (?, ?, ?, ?, ?)`
-		_, err := db.Exec(insertQuery, product.Name, product.Description, product.Price, product.Quantity, product.Category)
-		if err != nil {
-			log.Printf("Error inserting product %s: %v", product.Name, err)
-		}
-	}
-
-	log.Println("Sample products inserted successfully")
+	_, _ = db.Exec(createTableQuery)
 }
 
-// getAllProducts retrieves all products from database or returns mock data
+// Get all products (✅ FIXED NULL TIMESTAMP BUG)
 func getAllProducts() ([]Product, error) {
 	if db == nil {
 		return getMockProducts(), nil
 	}
 
-	query := `SELECT id, name, description, price, quantity, category, created_at, updated_at FROM products`
-	rows, err := db.Query(query)
+	rows, err := db.Query(`SELECT id, name, description, price, quantity, category, created_at, updated_at FROM products`)
 	if err != nil {
 		return getMockProducts(), err
 	}
@@ -172,16 +127,24 @@ func getAllProducts() ([]Product, error) {
 	var products []Product
 	for rows.Next() {
 		var product Product
-		var createdAt, updatedAt time.Time
+		var createdAt, updatedAt sql.NullTime
 
 		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price,
 			&product.Quantity, &product.Category, &createdAt, &updatedAt)
 		if err != nil {
-			return getMockProducts(), err
+			continue
 		}
 
-		product.CreatedAt = createdAt.Format("2006-01-02T15:04:05.000000Z")
-		product.UpdatedAt = updatedAt.Format("2006-01-02T15:04:05.000000Z")
+		if createdAt.Valid {
+			t := createdAt.Time.Format("2006-01-02T15:04:05")
+			product.CreatedAt = &t
+		}
+
+		if updatedAt.Valid {
+			t := updatedAt.Time.Format("2006-01-02T15:04:05")
+			product.UpdatedAt = &t
+		}
+
 		products = append(products, product)
 	}
 
@@ -194,44 +157,47 @@ func getMockProducts() []Product {
 	}
 }
 
-// Handlers...
+// Routes
 func productsHandler(w http.ResponseWriter, r *http.Request) {
-	// ... kode lama tetap
+	products, err := getAllProducts()
+	if err != nil {
+		json.NewEncoder(w).Encode(APIResponse{Success: false, Message: "Error retrieving products", Error: err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(APIResponse{Success: true, Data: products, Count: len(products)})
 }
 
 func productHandler(w http.ResponseWriter, r *http.Request) {
-	// ... kode lama tetap
+	idStr := strings.TrimPrefix(r.URL.Path, "/api/products/")
+	id, _ := strconv.Atoi(idStr)
+
+	products, _ := getAllProducts()
+	for _, p := range products {
+		if p.ID == id {
+			json.NewEncoder(w).Encode(APIResponse{Success: true, Data: p})
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(APIResponse{Success: false, Message: "Product not found"})
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	response := APIResponse{
+	json.NewEncoder(w).Encode(APIResponse{
 		Success: true,
 		Message: "Go Products API is running",
-		Data: map[string]string{
-			"endpoints": "GET /api/products, GET /api/products/{id}",
-			"database":  func() string { if db != nil { return "MySQL connected" } else { return "Using mock data" } }(),
-		},
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	})
 }
 
+// Main
 func main() {
 	initDB()
 	createSampleData()
 
-	// 🔹 CORS ADDED: Bungkus semua handler dengan middleware
 	http.HandleFunc("/", withCORS(homeHandler))
 	http.HandleFunc("/api/products", withCORS(productsHandler))
 	http.HandleFunc("/api/products/", withCORS(productHandler))
 
-	log.Println("Go Products API Server is running on http://localhost:8080")
-	log.Println("Endpoints:")
-	log.Println("  GET /api/products     - Get all products")
-	log.Println("  GET /api/products/{id} - Get product by ID")
-
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
-		log.Fatalf("Server failed: %s", err)
-	}
+	log.Println("🚀 Server running on http://localhost:8080")
+	http.ListenAndServe(":8080", nil)
 }
