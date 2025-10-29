@@ -1,57 +1,41 @@
-# ===========================================
-# 1️⃣ Namespace
-# ===========================================
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: monitoring
----
-# ===========================================
-# 2️⃣ Prometheus ConfigMap (scrape config)
-# ===========================================
+# =========================================================
+# ⚙️ PROMETHEUS CONFIGMAP
+# =========================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: monitoring
+  namespace: devops
 data:
   prometheus.yml: |
     global:
-      scrape_interval: 10s
-
+      scrape_interval: 15s
     scrape_configs:
-      - job_name: 'kubernetes-nodes'
-        kubernetes_sd_configs:
-          - role: node
-        relabel_configs:
-          - action: labelmap
-            regex: __meta_kubernetes_node_label_(.+)
-
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
           - role: pod
         relabel_configs:
-          - source_labels: [__meta_kubernetes_namespace]
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
             action: keep
-            regex: devops
-
-      - job_name: 'kubernetes-cadvisor'
-        kubernetes_sd_configs:
-          - role: node
-        metrics_path: /metrics/cadvisor
-        scheme: https
-        tls_config:
-          insecure_skip_verify: true
-        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.*)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: (.+):(?:\d+);(\d+)
+            replacement: $1:$2
+            target_label: __address__
 ---
-# ===========================================
-# 3️⃣ Prometheus Deployment + Service
-# ===========================================
+# =========================================================
+# 🧠 PROMETHEUS DEPLOYMENT + SERVICE (NodePort)
+# =========================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: monitoring
+  namespace: devops
 spec:
   replicas: 1
   selector:
@@ -62,135 +46,44 @@ spec:
       labels:
         app: prometheus
     spec:
-      serviceAccountName: prometheus
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          image: prom/prometheus:v2.53.0
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
-            - "--storage.tsdb.path=/prometheus"
-            - "--storage.tsdb.retention.time=2d"
+            - "--storage.tsdb.path=/prometheus/"
           ports:
             - containerPort: 9090
           volumeMounts:
-            - name: prometheus-config
-              mountPath: /etc/prometheus
-            - name: prometheus-data
-              mountPath: /prometheus
+            - name: prometheus-config-volume
+              mountPath: /etc/prometheus/
       volumes:
-        - name: prometheus-config
+        - name: prometheus-config-volume
           configMap:
             name: prometheus-config
-        - name: prometheus-data
-          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: prometheus
-  namespace: monitoring
+  name: prometheus-service
+  namespace: devops
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: prometheus
   ports:
     - port: 9090
       targetPort: 9090
+      nodePort: 30090
 ---
-# ===========================================
-# 4️⃣ ServiceAccount untuk Prometheus
-# ===========================================
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: prometheus
-  namespace: monitoring
----
-# ===========================================
-# 5️⃣ Grafana Datasource ConfigMap
-# ===========================================
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-datasource
-  namespace: monitoring
-  labels:
-    grafana_datasource: "1"
-data:
-  prometheus-datasource.yaml: |
-    apiVersion: 1
-    datasources:
-      - name: Prometheus
-        type: prometheus
-        access: proxy
-        url: http://prometheus.monitoring.svc.cluster.local:9090
-        isDefault: true
----
-# ===========================================
-# 6️⃣ Grafana Dashboard ConfigMap (namespace devops)
-# ===========================================
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: grafana-dashboard-devops
-  namespace: monitoring
-  labels:
-    grafana_dashboard: "1"
-data:
-  devops-dashboard.json: |
-    {
-      "id": null,
-      "uid": "devops-ns-monitoring",
-      "title": "DevOps Namespace Monitoring",
-      "tags": ["k8s", "namespace", "devops"],
-      "timezone": "browser",
-      "schemaVersion": 36,
-      "version": 1,
-      "panels": [
-        {
-          "type": "timeseries",
-          "title": "CPU Usage (per Pod)",
-          "datasource": "Prometheus",
-          "targets": [
-            {
-              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace='devops'}[5m])) by (pod)",
-              "legendFormat": "{{pod}}"
-            }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "Memory Usage (per Pod)",
-          "datasource": "Prometheus",
-          "targets": [
-            {
-              "expr": "sum(container_memory_usage_bytes{namespace='devops'}) by (pod)",
-              "legendFormat": "{{pod}}"
-            }
-          ]
-        },
-        {
-          "type": "stat",
-          "title": "Pod Count",
-          "datasource": "Prometheus",
-          "targets": [
-            {
-              "expr": "count(kube_pod_info{namespace='devops'})",
-              "legendFormat": "Pod Count"
-            }
-          ]
-        }
-      ]
-    }
----
-# ===========================================
-# 7️⃣ Grafana Deployment + Service
-# ===========================================
+# =========================================================
+# 📊 GRAFANA DEPLOYMENT + SERVICE (NodePort)
+# =========================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
-  namespace: monitoring
+  namespace: devops
 spec:
   replicas: 1
   selector:
@@ -203,9 +96,9 @@ spec:
     spec:
       containers:
         - name: grafana
-          image: grafana/grafana:latest
+          image: grafana/grafana:11.2.0
           ports:
-            - containerPort: 3000
+            - containerPort: 3001
           env:
             - name: GF_SECURITY_ADMIN_USER
               value: admin
@@ -214,78 +107,108 @@ spec:
           volumeMounts:
             - name: grafana-storage
               mountPath: /var/lib/grafana
-            - name: dashboards
-              mountPath: /var/lib/grafana/dashboards
-            - name: datasources
-              mountPath: /etc/grafana/provisioning/datasources
-        - name: grafana-sc-dashboard
-          image: quay.io/kiwigrid/k8s-sidecar:1.15.0
-          env:
-            - name: LABEL
-              value: grafana_dashboard
-            - name: FOLDER
-              value: /var/lib/grafana/dashboards
-          volumeMounts:
-            - name: dashboards
-              mountPath: /var/lib/grafana/dashboards
-        - name: grafana-sc-datasource
-          image: quay.io/kiwigrid/k8s-sidecar:1.15.0
-          env:
-            - name: LABEL
-              value: grafana_datasource
-            - name: FOLDER
-              value: /etc/grafana/provisioning/datasources
-          volumeMounts:
-            - name: datasources
-              mountPath: /etc/grafana/provisioning/datasources
       volumes:
         - name: grafana-storage
-          emptyDir: {}
-        - name: dashboards
-          emptyDir: {}
-        - name: datasources
           emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: grafana
-  namespace: monitoring
+  name: grafana-service
+  namespace: devops
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: grafana
   ports:
-    - port: 3000
-      targetPort: 3000
+    - port: 3001
+      targetPort: 3001
+      nodePort: 30091
 ---
-# ===========================================
-# 8️⃣ RBAC (read metrics from Kubernetes)
-# ===========================================
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+# =========================================================
+# 🧱 NODE EXPORTER (DaemonSet)
+# =========================================================
+apiVersion: apps/v1
+kind: DaemonSet
 metadata:
-  name: prometheus
-rules:
-  - apiGroups: [""]
-    resources:
-      - nodes
-      - nodes/metrics
-      - pods
-      - services
-      - endpoints
-      - namespaces
-    verbs: ["get", "list", "watch"]
+  name: node-exporter
+  namespace: devops
+spec:
+  selector:
+    matchLabels:
+      app: node-exporter
+  template:
+    metadata:
+      labels:
+        app: node-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:v1.8.2
+          ports:
+            - containerPort: 9100
+          securityContext:
+            privileged: true
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+apiVersion: v1
+kind: Service
 metadata:
-  name: prometheus
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: prometheus
-subjects:
-  - kind: ServiceAccount
-    name: prometheus
-    namespace: monitoring
+  name: node-exporter-service
+  namespace: devops
+spec:
+  type: ClusterIP
+  selector:
+    app: node-exporter
+  ports:
+    - port: 9100
+      targetPort: 9100
+---
+# =========================================================
+# 🧩 KUBE STATE METRICS
+# =========================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-state-metrics
+  namespace: devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-state-metrics
+  template:
+    metadata:
+      labels:
+        app: kube-state-metrics
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: kube-state-metrics
+          image: quay.io/coreos/kube-state-metrics:v2.10.0
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-state-metrics-service
+  namespace: devops
+spec:
+  selector:
+    app: kube-state-metrics
+  ports:
+    - port: 8080
+      targetPort: 8080

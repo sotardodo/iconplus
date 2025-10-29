@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: goapi
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: goapi
@@ -41,13 +45,13 @@ spec:
                   key: MYSQL_DATABASE
           readinessProbe:
             httpGet:
-              path: /metrics                # ubah sesuai endpoint metrics jika berbeda
+              path: /metrics
               port: http-goapi
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /                       # pastikan GoAPI merespons /
+              path: /
               port: http-goapi
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -60,11 +64,10 @@ metadata:
   labels:
     app: goapi
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: goapi
   ports:
     - name: http-goapi
       port: 8080
       targetPort: http-goapi
-      nodePort: 32156

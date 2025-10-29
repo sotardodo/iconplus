@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devops-ingress
+  namespace: devops
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$1"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: frontend.local
+    http:
+      paths:
+      - path: /(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 3000
+
+  - host: apigo.local
+    http:
+      paths:
+      - path: /go/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: goapi-service
+            port:
+              number: 8080
+
+      - path: /laravel/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: laravel-service
+            port:
+              number: 8001
+
+  - host: monitor.local
+    http:
+      paths:
+      - path: /prometheus/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: prometheus-service
+            port:
+              number: 9090
+
+      - path: /grafana/?(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: grafana-service
+            port:
+              number: 3001

@@ -1,0 +1,136 @@
+# 1️⃣ Secret: menyimpan kredensial MySQL
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+  namespace: devops
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: sotar123
+  MYSQL_USER: sotar
+  MYSQL_PASSWORD: sotar123
+  MYSQL_DATABASE: laravel
+---
+# 2️⃣ PVC untuk MySQL data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pv-claim
+  namespace: devops
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# 3️⃣ Deployment MySQL utama
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: devops
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          envFrom:
+            - secretRef:
+                name: mysql-secret
+          ports:
+            - name: mysql
+              containerPort: 3306
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pv-claim
+---
+# 4️⃣ Service untuk MySQL
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  namespace: devops
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+  type: ClusterIP
+---
+# 5️⃣ ConfigMap untuk file .my.cnf
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-exporter-config
+  namespace: devops
+data:
+  .my.cnf: |
+    [client]
+    user=sotar
+    password=sotar123
+    host=mysql-service
+    port=3306
+---
+# 6️⃣ Deployment mysqld-exporter
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-exporter
+  namespace: devops
+  labels:
+    app: mysql-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql-exporter
+  template:
+    metadata:
+      labels:
+        app: mysql-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9104"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: mysqld-exporter
+          image: prom/mysqld-exporter:v0.15.0
+          args:
+            - "--config.my-cnf=/.my.cnf"
+            - "--web.listen-address=:9104"
+            - "--mysqld.address=mysql-service:3306"
+          ports:
+            - containerPort: 9104
+          volumeMounts:
+            - name: mysql-exporter-config
+              mountPath: /.my.cnf
+              subPath: .my.cnf
+      volumes:
+        - name: mysql-exporter-config
+          configMap:
+            name: mysql-exporter-config
+---
+# 7️⃣ Service mysqld-exporter
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-exporter

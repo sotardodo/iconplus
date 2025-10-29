@@ -5,42 +5,50 @@ FROM composer:2 AS build
 
 WORKDIR /app
 
-COPY composer.json composer.lock ./
+RUN apk add --no-cache \
+    zip unzip git libzip-dev icu-dev zlib-dev oniguruma-dev libxml2-dev && \
+    docker-php-ext-install zip intl
+
 COPY . .
 
+RUN cp .env.example .env || true
+
+# Install dependencies Laravel
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
-RUN if [ ! -f ".env" ]; then \
-      echo "⚙️ Creating .env from .env.example..."; \
-      cp .env.example .env; \
-    fi
+# (Opsional) Tambahan package renoki exporter
+RUN composer require renoki-co/laravel-exporter:^3.0 --no-interaction --prefer-dist || true
 
-RUN set -eux; \
-    if ! grep -q "APP_KEY=" .env || [ -z "$(grep 'APP_KEY=' .env | cut -d '=' -f2)" ]; then \
-      echo "🔑 Generating Laravel APP_KEY ..."; \
-      php artisan key:generate --force; \
-    else \
-      echo "✅ APP_KEY already exists, skipping generation."; \
-    fi
+# Set permission folder Laravel
+RUN chmod -R 775 storage bootstrap/cache
+
 
 # =========================
-# Stage 2 - Runtime
+# Stage 2 - PHP Runtime
 # =========================
 FROM php:8.2-fpm-alpine
 
 WORKDIR /var/www/html
 
-RUN apk add --no-cache bash git unzip libzip-dev icu-dev oniguruma-dev \
-    && docker-php-ext-install pdo_mysql intl opcache zip
+RUN apk add --no-cache \
+    bash git unzip curl supervisor \
+    icu-dev libzip-dev zlib-dev oniguruma-dev \
+    libpng-dev libjpeg-turbo-dev libxpm-dev libwebp-dev libxml2-dev \
+    mysql-client
 
-COPY --from=build /app .
+RUN docker-php-ext-install pdo_mysql intl opcache zip mbstring bcmath
 
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 storage bootstrap/cache
+COPY --from=build /app ./
 
+
+COPY ./supervisord.conf /etc/supervisord.conf
+
+# Set environment
 ENV APP_ENV=production \
-    APP_DEBUG=false
+    APP_DEBUG=false \
+    APP_URL=http://localhost:8001 \
+    PORT=8001
 
 EXPOSE 8001
 
-CMD ["sh", "-c", "php artisan migrate --force || true && php artisan serve --host=0.0.0.0 --port=8001"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

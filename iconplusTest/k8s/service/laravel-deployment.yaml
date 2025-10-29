@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel
+  namespace: devops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: laravel
+  template:
+    metadata:
+      labels:
+        app: laravel
+    spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: mysql:8.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "⏳ Waiting for MySQL to be ready..."
+              until mysql -h $DB_HOST -u $DB_USERNAME -p$DB_PASSWORD -e "SELECT 1" >/dev/null 2>&1; do
+                echo "❌ MySQL belum siap, ulangi..."
+                sleep 3
+              done
+              echo "✅ MySQL siap!"
+
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+
+      containers:
+        - name: laravel
+          image: sotar12/laravel:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              php artisan key:generate --force
+              php artisan migrate --force || true
+              php artisan serve --host=0.0.0.0 --port=8001
+
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+            - secretRef:
+                name: mysql-secret
+
+          ports:
+            - containerPort: 8001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: laravel-service
+  namespace: devops
+spec:
+  selector:
+    app: laravel
+  ports:
+    - name: http-laravel
+      port: 8001
+      targetPort: 8001 
