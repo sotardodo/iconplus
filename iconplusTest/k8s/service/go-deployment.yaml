@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: goapi
   namespace: devops
+  labels:
+    app: goapi
 spec:
   replicas: 1
   selector:
@@ -20,12 +22,13 @@ spec:
       containers:
         - name: goapi
           image: sotar12/go:latest
+          imagePullPolicy: IfNotPresent
           ports:
-            - name: http-goapi
+            - name: http
               containerPort: 8080
           env:
             - name: DB_HOST
-              value: mysql-service          # 🔗 host MySQL di namespace devops
+              value: mysql-service
             - name: DB_PORT
               value: "3306"
             - name: DB_USER
@@ -45,14 +48,14 @@ spec:
                   key: MYSQL_DATABASE
           readinessProbe:
             httpGet:
-              path: /metrics
-              port: http-goapi
+              path: /healthz       # gunakan endpoint khusus health (disarankan)
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
-              port: http-goapi
+              path: /healthz       # jangan gunakan "/" untuk Go API
+              port: 8080
             initialDelaySeconds: 15
             periodSeconds: 20
 ---
@@ -68,6 +71,6 @@ spec:
   selector:
     app: goapi
   ports:
-    - name: http-goapi
+    - name: http
       port: 8080
-      targetPort: http-goapi
+      targetPort: 8080

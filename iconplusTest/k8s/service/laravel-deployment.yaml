@@ -20,34 +20,33 @@ spec:
           args:
             - |
               echo "⏳ Waiting for MySQL to be ready..."
-              until mysql -h $DB_HOST -u $DB_USERNAME -p$DB_PASSWORD -e "SELECT 1" >/dev/null 2>&1; do
+              until mysql -h "$DB_HOST" -u "$DB_USERNAME" -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; do
                 echo "❌ MySQL belum siap, ulangi..."
                 sleep 3
               done
               echo "✅ MySQL siap!"
-
-          envFrom:
-            - configMapRef:
-                name: laravel-config
-
-      containers:
-        - name: laravel
-          image: sotar12/laravel:latest
-          command: ["sh", "-c"]
-          args:
-            - |
-              php artisan key:generate --force
-              php artisan migrate --force || true
-              php artisan serve --host=0.0.0.0 --port=8001
-
           envFrom:
             - configMapRef:
                 name: laravel-config
             - secretRef:
                 name: mysql-secret
 
+      containers:
+        - name: laravel
+          image: sotar12/laravel:latest
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              php artisan serve --host=0.0.0.0 --port=8001
           ports:
             - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+            - secretRef:
+                name: mysql-secret
+
 ---
 apiVersion: v1
 kind: Service
@@ -60,4 +59,5 @@ spec:
   ports:
     - name: http-laravel
       port: 8001
-      targetPort: 8001 
+      targetPort: 8001
+  type: ClusterIP

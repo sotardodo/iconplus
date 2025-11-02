@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: laravel-init
+  namespace: devops
+spec:
+  template:
+    spec:
+      containers:
+        - name: laravel-init
+          image: sotar12/laravel:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              if [ ! -f .env ]; then
+                cp .env.example .env
+              fi
+              php artisan key:generate --force
+              php artisan migrate --force --seed
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+            - secretRef:
+                name: mysql-secret
+      restartPolicy: Never
+  backoffLimit: 1

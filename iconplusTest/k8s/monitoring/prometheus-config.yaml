@@ -9,21 +9,9 @@ data:
       scrape_interval: 15s
 
     scrape_configs:
-      - job_name: 'kubernetes-nodes'
+      - job_name: 'node-exporter'
         static_configs:
           - targets: ['node-exporter.devops.svc.cluster.local:9100']
-
-      - job_name: 'mysql-exporter'
-        static_configs:
-          - targets: ['mysql-exporter.devops.svc.cluster.local:9104']
-
-      - job_name: 'goapi'
-        static_configs:
-          - targets: ['goapi-service.devops.svc.cluster.local:8080']
-
-      - job_name: 'laravel'
-        static_configs:
-          - targets: ['laravel-service.devops.svc.cluster.local:8001']
 
       - job_name: 'kube-state-metrics'
         static_configs:

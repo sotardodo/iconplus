@@ -3,6 +3,8 @@ kind: DaemonSet
 metadata:
   name: node-exporter
   namespace: devops
+  labels:
+    app: node-exporter
 spec:
   selector:
     matchLabels:
@@ -14,10 +16,16 @@ spec:
     spec:
       containers:
         - name: node-exporter
-          image: prom/node-exporter:v1.8.1
+          image: prom/node-exporter:latest
           ports:
             - containerPort: 9100
               name: metrics
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+      hostNetwork: true
+      hostPID: true
 ---
 apiVersion: v1
 kind: Service
@@ -30,5 +38,5 @@ spec:
     app: node-exporter
   ports:
     - port: 9100
-      targetPort: 9100
       name: metrics
+      targetPort: 9100
