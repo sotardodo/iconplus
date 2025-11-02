@@ -1,8 +1,0 @@
-🔍 Mendeteksi semua service di namespace: devops ...
-🚀 Forwarding service frontend-service: localhost:3000 → frontend-service:3000
-🚀 Forwarding service goapi-service: localhost:8080 → goapi-service:8080
-🚀 Forwarding service laravel-service: localhost:8001 → laravel-service:8001
-🚀 Forwarding service mysql-service: localhost:3306 → mysql-service:3306
-✅ Semua port-forward dijalankan di background.
-Gunakan 'ps aux | grep kubectl' untuk melihat proses aktif.
-Tekan Ctrl+C untuk menghentikan semuanya.
