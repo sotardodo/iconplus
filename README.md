@@ -176,3 +176,6 @@ kubectl port-forward -n monitoring svc/prometheus-grafana 3001:80
 ```bash
 kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
 ```
+
+
+saya buat diluar installer kube-prometheus-stack.tgz agar bisa diinstall secara offline
