@@ -8,7 +8,7 @@ Panduan ini menjelaskan langkah-langkah lengkap untuk:
 ---
 
 ## 📂 Struktur Project
-
+```bash
 rootProject/
 ├── laravel/
 │ ├── Dockerfile
@@ -20,7 +20,7 @@ rootProject/
 │ ├── Dockerfile
 │ └── (source code Frontend)
 ├── k8s/
-
+```
 
 > 📁 Folder `k8s/` berisi semua file manifest Kubernetes.
 
