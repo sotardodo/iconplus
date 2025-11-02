@@ -1,15 +1,6 @@
 # 🚀 Deployment Guide — (Laravel + Go + Frontend + MySQL)
 
-![Arsitektur monitoring](images/image2.png)
-![Arsitektur CI/CD Pipeline](images/image1.png)
-Jenkins berperan sebagai alat otomatisasi (CI/CD) yang menjalankan proses build → push → deploy secara otomatis setiap kali ada perubahan kode.
-Panduan ini menjelaskan langkah-langkah lengkap untuk:
-1. Build Docker image untuk setiap komponen aplikasi.
-2. Push image ke registry (contoh: Docker Hub).
-3. Deploy semua komponen ke Kubernetes.
-
 ---
-
 ## 📂 Struktur Project
 ```bash
 rootProject/
@@ -123,6 +114,11 @@ Cek semua pod:
 kubectl get pods -n devops
 ```
 
+![Arsitektur monitoring](images/image2.png)
+
+
+
+
 # Monitoring Kubernetes menggunakan Prometheus & Grafana
 
 Dokumentasi ini menjelaskan cara melakukan instalasi **Prometheus** dan **Grafana** pada cluster Kubernetes menggunakan Helm Chart **kube-prometheus-stack**.
@@ -184,6 +180,9 @@ kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 909
 
 
 saya buat diluar installer kube-prometheus-stack.tgz agar bisa diinstall secara offline
+
+
+![Arsitektur CI/CD Pipeline](images/image1.png)
 
 
 # CI/CD Pipeline dengan Jenkins, Docker, dan Kubernetes
