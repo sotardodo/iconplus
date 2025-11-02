@@ -123,6 +123,8 @@ kubectl get pods -n devops
 # Monitoring Kubernetes menggunakan Prometheus & Grafana
 
 Dokumentasi ini menjelaskan cara melakukan instalasi **Prometheus** dan **Grafana** pada cluster Kubernetes menggunakan Helm Chart **kube-prometheus-stack**.
+Sistem monitoring ini dibangun menggunakan template monitoring siap pakai (Prometheus, Grafana, Node Exporter, dan Kube-State-Metrics) untuk mempercepat proses implementasi dan memastikan konfigurasi sesuai standar industri.
+Pendekatan ini dipilih karena menyediakan integrasi otomatis antar-komponen Kubernetes, mengurangi potensi kesalahan konfigurasi manual, serta memudahkan pemeliharaan dan skalabilitas sistem monitoring di lingkungan cluster.
 
 ## Prasyarat
 Pastikan sudah terinstall:
