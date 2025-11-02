@@ -1,5 +1,8 @@
-# 🚀 Deployment Guide — iconplusTest (Laravel + Go + Frontend + MySQL)
+# 🚀 Deployment Guide — (Laravel + Go + Frontend + MySQL)
 
+![Arsitektur monitoring](images/image2.png)
+![Arsitektur CI/CD Pipeline](images/image1.png)
+Jenkins berperan sebagai alat otomatisasi (CI/CD) yang menjalankan proses build → push → deploy secara otomatis setiap kali ada perubahan kode.
 Panduan ini menjelaskan langkah-langkah lengkap untuk:
 1. Build Docker image untuk setiap komponen aplikasi.
 2. Push image ke registry (contoh: Docker Hub).
@@ -181,3 +184,128 @@ kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 909
 
 
 saya buat diluar installer kube-prometheus-stack.tgz agar bisa diinstall secara offline
+
+
+# CI/CD Pipeline dengan Jenkins, Docker, dan Kubernetes
+
+Pipeline ini digunakan untuk melakukan otomatisasi proses **build**, **push**, dan **deploy** pada aplikasi yang terdiri dari 3 service:
+- Frontend
+- Go API
+- Laravel
+
+Pipeline berjalan menggunakan **Jenkins**, membangun image menggunakan **Docker**, menyimpan image di **Docker Hub**, dan melakukan deployment ke **Kubernetes** cluster.
+
+---
+
+## 🏗 Struktur Project
+```bash
+rootProject
+├── frontend/ # Source code frontend
+├── go/ # Source code Golang API
+└── laravel/ # Source code Laravel API
+```
+
+
+---
+
+## 🔧 Tools yang Digunakan
+| Tools | Fungsi |
+|------|--------|
+| Jenkins | CI/CD pipeline automation |
+| Docker | Build dan packaging aplikasi menjadi container image |
+| Docker Hub | Registry penyimpanan image |
+| Kubernetes | Menjalankan aplikasi dalam bentuk container di cluster |
+
+---
+
+## ⚙️ Environment Variables
+| Variable | Keterangan |
+|---------|------------|
+| `DOCKER_HUB_USER` | Username Docker Hub untuk push image |
+| `NAMESPACE` | Namespace Kubernetes tempat deployment berjalan |
+
+---
+
+## 🔐 Credential yang Diperlukan
+| Credential ID | Tipe | Digunakan Untuk |
+|---------------|------|----------------|
+| `dockerhub-creds` | Username + Password Docker Hub | Login saat push image |
+
+Pastikan credential ini sudah dibuat di **Jenkins → Manage Credentials**.
+
+---
+
+## 🚀 Alur CI/CD Pipeline
+
+| Stage | Fungsi |
+|------|--------|
+| **Checkout** | Mengambil source code dari GitHub |
+| **Build Images** | Build image Docker untuk masing-masing service |
+| **Push to Docker Hub** | Push image yang sudah di-build ke Docker Hub |
+| **Deploy to Kubernetes** | Update image deployment & restart rollout di cluster |
+
+---
+
+## 🧱 Jenkinsfile
+```groovy
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB_USER = 'sotar12'
+        NAMESPACE = 'devops'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/sotardodo/iconplus.git'
+            }
+        }
+
+        stage('Build Images') {
+            steps {
+                sh '''
+                docker build -t $DOCKER_HUB_USER/frontend:latest ./frontend
+                docker build -t $DOCKER_HUB_USER/goapi:latest ./go
+                docker build -t $DOCKER_HUB_USER/laravel:latest ./laravel
+                '''
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh '''
+                    echo "$PASS" | docker login -u "$USER" --password-stdin
+                    docker push $DOCKER_HUB_USER/frontend:latest
+                    docker push $DOCKER_HUB_USER/goapi:latest
+                    docker push $DOCKER_HUB_USER/laravel:latest
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl set image deployment/frontend -n $NAMESPACE frontend=$DOCKER_HUB_USER/frontend:latest
+                kubectl set image deployment/goapi -n $NAMESPACE goapi=$DOCKER_HUB_USER/goapi:latest
+                kubectl set image deployment/laravel -n $NAMESPACE laravel=$DOCKER_HUB_USER/laravel:latest
+                kubectl rollout restart deployment frontend -n $NAMESPACE
+                kubectl rollout restart deployment goapi -n $NAMESPACE
+                kubectl rollout restart deployment laravel -n $NAMESPACE
+                '''
+            }
+        }
+    }
+}
+
+```
+## ✅ Hasil Akhir
+
+`Setiap kali ada perubahan code yang dipush ke GitHub:
+- Jenkins akan otomatis build image terbaru
+- Image akan dipush ke Docker Hub
+- Kubernetes akan menggunakan image terbaru dan deployment di-rollout ulang
+- Pipeline otomatis berjalan end-to-end.
