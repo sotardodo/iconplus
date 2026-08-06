@@ -1,0 +1,10 @@
+{
+  "php.workspaceFolder": "${workspaceFolder}/laravel",
+  "intelephense.environment.includePaths": [
+    "${workspaceFolder}/laravel/vendor"
+  ],
+  "intelephense.files.associations": ["*.php"],
+  "files.exclude": {
+    "**/laravel/vendor/**": false
+  }
+}
