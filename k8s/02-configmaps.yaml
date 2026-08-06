@@ -1,0 +1,60 @@
+# ============================================================
+# ConfigMap: Laravel Environment
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laravel-config
+  namespace: sotar
+  labels:
+    app.kubernetes.io/component: laravel
+data:
+  APP_NAME: "IconPlus"
+  APP_ENV: "production"
+  APP_DEBUG: "false"
+  APP_URL: "http://laravel-service.sotar.svc.cluster.local"
+  LOG_CHANNEL: "stderr"
+  DB_CONNECTION: "mysql"
+  DB_HOST: "mysql-service"
+  DB_PORT: "3306"
+  DB_DATABASE: "laravel"
+  DB_USERNAME: "root"
+  CACHE_DRIVER: "file"
+  SESSION_DRIVER: "file"
+  QUEUE_CONNECTION: "sync"
+
+---
+# ============================================================
+# ConfigMap: Golang Environment
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golang-config
+  namespace: sotar
+  labels:
+    app.kubernetes.io/component: golang
+data:
+  APP_ENV: "production"
+  APP_PORT: "8080"
+  DB_DRIVER: "mysql"
+  DB_HOST: "mysql-service"
+  DB_PORT: "3306"
+  DB_NAME: "laravel"
+  DB_USER: "root"
+  VAULT_ADDR: "http://vault-service:8200"
+
+---
+# ============================================================
+# ConfigMap: Frontend Environment
+# ============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: sotar
+  labels:
+    app.kubernetes.io/component: frontend
+data:
+  API_BASE_URL: "http://golang-service.sotar.svc.cluster.local:8080"
+  LARAVEL_API_URL: "http://laravel-service.sotar.svc.cluster.local"

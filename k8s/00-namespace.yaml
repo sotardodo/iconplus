@@ -1,0 +1,10 @@
+# ============================================================
+# Namespace: sotar
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sotar
+  labels:
+    app.kubernetes.io/managed-by: kubectl
+    environment: production

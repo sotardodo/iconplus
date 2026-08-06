@@ -1,0 +1,157 @@
+# ============================================================
+# Laravel Deployment + Service + HPA
+# Image: sotar12/laravel:latest
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel
+  namespace: sotar
+  labels:
+    app.kubernetes.io/name: laravel
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: laravel
+  template:
+    metadata:
+      labels:
+        app: laravel
+        app.kubernetes.io/name: laravel
+        app.kubernetes.io/component: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001" # <-- Diubah ke 8001
+        prometheus.io/path: "/metrics"
+    spec:
+      initContainers:
+        # Jalankan migrasi database sebelum app start
+        - name: laravel-migrate
+          image: sotar12/laravel:latest
+          imagePullPolicy: Always
+          command: ["php", "artisan", "migrate", "--force"]
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+          env:
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secret
+                  key: APP_KEY
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secret
+                  key: DB_PASSWORD
+
+      containers:
+        - name: laravel
+          image: sotar12/laravel:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8001 
+              name: http
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+          env:
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secret
+                  key: APP_KEY
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secret
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8001 
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8001 
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: laravel-storage
+              mountPath: /var/www/html/storage
+
+      volumes:
+        - name: laravel-storage
+          emptyDir: {}
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: laravel-service
+  namespace: sotar
+  labels:
+    app.kubernetes.io/name: laravel
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8001 
+      protocol: TCP
+      name: http
+  selector:
+    app: laravel
+
+---
+# ============================================================
+# HorizontalPodAutoscaler - Laravel
+# ============================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: laravel-hpa
+  namespace: sotar
+  labels:
+    app.kubernetes.io/name: laravel
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: laravel
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
