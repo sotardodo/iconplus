@@ -1,9 +1,6 @@
 # ============================================================
-# Ingress - Routing Traffic ke Services
-# Memerlukan Ingress Controller (nginx-ingress / traefik)
-# ============================================================
-# Install nginx-ingress controller:
-#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.1/deploy/static/provider/cloud/deploy.yaml
+# Ingress - Routing Traffic ke Services (Traefik)
+# Backend port = Service.spec.ports[].port (bukan targetPort/containerPort)
 # ============================================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -13,21 +10,9 @@ metadata:
   labels:
     app.kubernetes.io/component: networking
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-    # Rate limiting
-    nginx.ingress.kubernetes.io/limit-rps: "100"
-    nginx.ingress.kubernetes.io/limit-connections: "50"
-    # CORS
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   rules:
     # ---- Frontend: app.sotar.local ----
     - host: app.sotar.local
@@ -41,7 +26,7 @@ spec:
                 port:
                   number: 80
 
-    # ---- Laravel API: api.sotar.local ----
+    # ---- Laravel API: api.sotar.local (/api/*) ----
     - host: api.sotar.local
       http:
         paths:
@@ -53,7 +38,7 @@ spec:
                 port:
                   number: 80
 
-    # ---- Golang API: go.sotar.local ----
+    # ---- Golang API: go.sotar.local (/api/*) ----
     - host: go.sotar.local
       http:
         paths:
@@ -65,7 +50,7 @@ spec:
                 port:
                   number: 8080
 
-    # ---- Grafana Dashboard: grafana.sotar.local ----
+    # ---- Grafana: grafana.sotar.local ----
     - host: grafana.sotar.local
       http:
         paths:
@@ -76,6 +61,18 @@ spec:
                 name: grafana-service
                 port:
                   number: 3000
+
+    # ---- Prometheus: prometheus.sotar.local ----
+    - host: prometheus.sotar.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-service
+                port:
+                  number: 9090
 
     # ---- Vault UI: vault.sotar.local ----
     - host: vault.sotar.local
