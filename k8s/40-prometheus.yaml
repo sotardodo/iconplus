@@ -69,75 +69,33 @@ data:
       evaluation_interval: 15s
       scrape_timeout: 10s
 
-    # ============================================================
-    # Alerting Rules
-    # ============================================================
     rule_files:
       - "/etc/prometheus/alert-rules.yml"
 
-    # ============================================================
-    # Scrape Configurations
-    # ============================================================
     scrape_configs:
-
-      # ---- Prometheus Self-Monitoring ----
       - job_name: "prometheus"
         static_configs:
           - targets: ["localhost:9090"]
 
-      # ---- Kubernetes Pods (auto-discovery via annotations) ----
-      - job_name: "kubernetes-pods"
-        kubernetes_sd_configs:
-          - role: pod
-            namespaces:
-              names:
-                - sotar
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-            action: keep
-            regex: true
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-            action: replace
-            target_label: __metrics_path__
-            regex: (.+)
-          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-            action: replace
-            regex: ([^:]+)(?::\d+)?;(\d+)
-            replacement: $1:$2
-            target_label: __address__
-          - action: labelmap
-            regex: __meta_kubernetes_pod_label_(.+)
-          - source_labels: [__meta_kubernetes_namespace]
-            action: replace
-            target_label: kubernetes_namespace
-          - source_labels: [__meta_kubernetes_pod_name]
-            action: replace
-            target_label: kubernetes_pod_name
-
-      # ---- Frontend Service ----
       - job_name: "frontend"
         static_configs:
           - targets: ["frontend-service:80"]
         metrics_path: "/metrics"
 
-      # ---- Laravel Service ----
       - job_name: "laravel"
         static_configs:
           - targets: ["laravel-service:80"]
         metrics_path: "/metrics"
 
-      # ---- Golang Service ----
       - job_name: "golang"
         static_configs:
           - targets: ["golang-service:8080"]
         metrics_path: "/metrics"
 
-      # ---- MySQL Exporter ----
       - job_name: "mysql"
         static_configs:
           - targets: ["mysql-service:9104"]
 
-      # ---- Vault Metrics ----
       - job_name: "vault"
         metrics_path: "/v1/sys/metrics"
         params:
@@ -146,35 +104,10 @@ data:
         static_configs:
           - targets: ["vault-service:8200"]
 
-      # ---- Kubernetes Service Endpoints ----
-      - job_name: "kubernetes-service-endpoints"
-        kubernetes_sd_configs:
-          - role: endpoints
-            namespaces:
-              names:
-                - sotar
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
-            action: keep
-            regex: true
-          - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
-            action: replace
-            target_label: __metrics_path__
-            regex: (.+)
-          - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
-            action: replace
-            target_label: __address__
-            regex: ([^:]+)(?::\d+)?;(\d+)
-            replacement: $1:$2
-
-  # ============================================================
-  # Alert Rules
-  # ============================================================
   alert-rules.yml: |
     groups:
       - name: application-alerts
         rules:
-          # Pod crash / restart terus-menerus
           - alert: PodCrashLooping
             expr: rate(kube_pod_container_status_restarts_total{namespace="sotar"}[5m]) > 0
             for: 5m
@@ -184,7 +117,6 @@ data:
               summary: "Pod {{ $labels.pod }} is crash looping"
               description: "Pod {{ $labels.pod }} di namespace {{ $labels.namespace }} restart lebih dari 0 kali dalam 5 menit."
 
-          # Pod tidak ready
           - alert: PodNotReady
             expr: kube_pod_status_ready{namespace="sotar", condition="true"} == 0
             for: 5m
@@ -194,7 +126,6 @@ data:
               summary: "Pod {{ $labels.pod }} is not ready"
               description: "Pod {{ $labels.pod }} belum ready selama lebih dari 5 menit."
 
-          # CPU usage tinggi
           - alert: HighCPUUsage
             expr: (rate(container_cpu_usage_seconds_total{namespace="sotar"}[5m])) > 0.8
             for: 10m
@@ -204,7 +135,6 @@ data:
               summary: "High CPU usage pada container {{ $labels.container }}"
               description: "Container {{ $labels.container }} menggunakan lebih dari 80% CPU selama 10 menit."
 
-          # Memory usage tinggi
           - alert: HighMemoryUsage
             expr: container_memory_usage_bytes{namespace="sotar"} / container_spec_memory_limit_bytes{namespace="sotar"} > 0.85
             for: 5m

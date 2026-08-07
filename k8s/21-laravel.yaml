@@ -28,36 +28,20 @@ spec:
         app.kubernetes.io/component: backend
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8001" # <-- Diubah ke 8001
+        prometheus.io/port: "8001" 
         prometheus.io/path: "/metrics"
     spec:
-      initContainers:
-        # Jalankan migrasi database sebelum app start
-        - name: laravel-migrate
-          image: sotar12/laravel:latest
-          imagePullPolicy: Always
-          command: ["php", "artisan", "migrate", "--force"]
-          envFrom:
-            - configMapRef:
-                name: laravel-config
-          env:
-            - name: APP_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: laravel-secret
-                  key: APP_KEY
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: laravel-secret
-                  key: DB_PASSWORD
+      # (Init container dimatikan karena tabel users sudah ada)
+      # initContainers:
+      #   - name: laravel-migrate
+      #     ...
 
       containers:
         - name: laravel
           image: sotar12/laravel:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8001 
+            - containerPort: 8001
               name: http
           envFrom:
             - configMapRef:
@@ -83,7 +67,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /
-              port: 8001 
+              port: 8001
             initialDelaySeconds: 30
             periodSeconds: 20
             timeoutSeconds: 5
@@ -91,18 +75,22 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: 8001 
+              port: 8001
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
-          volumeMounts:
-            - name: laravel-storage
-              mountPath: /var/www/html/storage
+          
+          # PERBAIKAN: Mematikan volumeMounts agar folder bawaan Docker tidak terhapus
+          # volumeMounts:
+          #   - name: laravel-storage
+          #     mountPath: /var/www/html/storage
 
-      volumes:
-        - name: laravel-storage
-          emptyDir: {}
+      # PERBAIKAN: Mematikan emptyDir volume
+      # volumes:
+      #   - name: laravel-storage
+      #     emptyDir: {}
+      
       restartPolicy: Always
 
 ---
@@ -118,7 +106,7 @@ spec:
   type: ClusterIP
   ports:
     - port: 80
-      targetPort: 8001 
+      targetPort: 8001
       protocol: TCP
       name: http
   selector:

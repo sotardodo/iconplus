@@ -8,6 +8,7 @@ metadata:
   name: golang
   namespace: sotar
   labels:
+    app: golang
     app.kubernetes.io/name: golang
     app.kubernetes.io/component: api
 spec:
@@ -61,21 +62,21 @@ spec:
               memory: 256Mi
           livenessProbe:
             httpGet:
-              path: /health
+              path: /api/products
               port: 8080
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health
+              path: /api/products
               port: 8080
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
-      restartPolicy: Always
+          restartPolicy: Always
 
 ---
 apiVersion: v1
@@ -84,6 +85,7 @@ metadata:
   name: golang-service
   namespace: sotar
   labels:
+    app: golang
     app.kubernetes.io/name: golang
     app.kubernetes.io/component: api
 spec:

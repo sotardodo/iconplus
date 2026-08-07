@@ -40,8 +40,6 @@ metadata:
     app.kubernetes.io/name: vault
     app.kubernetes.io/component: security
 data:
-  # PERBAIKAN 2: Blok listener dan storage dihapus karena mode -dev sudah otomatis 
-  # menanganinya di memory dan port 8200.
   vault-config.hcl: |
     ui = true
     api_addr = "http://0.0.0.0:8200"
@@ -115,7 +113,6 @@ data:
 
     echo "🎉 Vault konfigurasi selesai!"
     
-    # PERBAIKAN 3: Tahan container agar tidak exit dan memicu CrashLoopBackOff
     sleep infinity
 
 ---
@@ -161,23 +158,20 @@ spec:
       serviceAccountName: vault-auth
       containers:
         - name: vault
-          image: hashicorp/vault:1.17
+          image: hashicorp/vault:1.17.6
           ports:
             - containerPort: 8200
               name: vault-api
             - containerPort: 8201
               name: vault-cluster
           env:
-            # PERBAIKAN 1: Hentikan Vault melakukan chown pada ConfigMap yang Read-Only
             - name: SKIP_CHOWN
               value: "true"
             - name: SKIP_SETCAP
               value: "true"
+            # Menggunakan root token dev standar agar tidak invalid request
             - name: VAULT_DEV_ROOT_TOKEN_ID
-              valueFrom:
-                secretKeyRef:
-                  name: vault-secret
-                  key: VAULT_DEV_ROOT_TOKEN_ID
+              value: "root"
             - name: VAULT_DEV_LISTEN_ADDRESS
               value: "0.0.0.0:8200"
             - name: VAULT_ADDR
@@ -187,7 +181,7 @@ spec:
           args:
             - "server"
             - "-dev"
-            - "-dev-root-token-id=$(VAULT_DEV_ROOT_TOKEN_ID)"
+            - "-dev-root-token-id=root"
           resources:
             requests:
               cpu: 100m
@@ -221,16 +215,13 @@ spec:
 
         # ---- Init Sidecar: auto-configure Vault ----
         - name: vault-init
-          image: hashicorp/vault:1.17
+          image: hashicorp/vault:1.17.6
           command: ["/bin/sh", "/vault/config/vault-init.sh"]
           env:
             - name: VAULT_ADDR
               value: "http://127.0.0.1:8200"
             - name: VAULT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: vault-secret
-                  key: VAULT_DEV_ROOT_TOKEN_ID
+              value: "root"
           volumeMounts:
             - name: vault-config
               mountPath: /vault/config
