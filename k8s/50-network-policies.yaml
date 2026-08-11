@@ -32,9 +32,18 @@ spec:
     - ports:
         - port: 80
           protocol: TCP
+        - port: 9113
+          protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9113
+          protocol: TCP
 
 ---
-# Allow: Laravel hanya bisa diakses dari Frontend dan Golang
+# Allow: Laravel hanya bisa diakses dari Frontend, Golang, Traefik, dan Prometheus
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -65,9 +74,17 @@ spec:
       ports:
         - port: 8001
           protocol: TCP
+    # Prometheus -> Laravel (Metrics Scrape)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8001
+          protocol: TCP
 
 ---
-# Allow: Golang hanya bisa diakses dari Frontend
+# Allow: Golang hanya bisa diakses dari Frontend, Traefik, dan Prometheus
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -95,9 +112,17 @@ spec:
       ports:
         - port: 8080
           protocol: TCP
+    # Prometheus -> Golang (Metrics Scrape)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 8080
+          protocol: TCP
 
 ---
-# Allow: MySQL hanya bisa diakses dari Laravel dan Golang
+# Allow: MySQL hanya bisa diakses dari Laravel, Golang, dan Prometheus Exporter
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

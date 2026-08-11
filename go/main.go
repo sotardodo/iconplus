@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/joho/godotenv"
 )
 
 // Product represents a product in the database
@@ -59,7 +59,6 @@ func getDBConfig() (driver, user, password, name, host, port string) {
 
 // Initialize database connection
 func initDB() {
-	// Load environment variables from .env file
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using default environment variables")
 	}
@@ -67,9 +66,9 @@ func initDB() {
 	var err error
 	driver, user, password, name, host, port := getDBConfig()
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", user, password, host, port, name)
-	
+
 	log.Printf("Connecting to database: %s@%s:%s/%s", user, host, port, name)
-	
+
 	db, err = sql.Open(driver, dsn)
 	if err != nil {
 		log.Printf("Error opening database: %v", err)
@@ -94,7 +93,6 @@ func createSampleData() {
 		return
 	}
 
-	// Create products table if it doesn't exist
 	createTableQuery := `
 	CREATE TABLE IF NOT EXISTS products (
 		id INT AUTO_INCREMENT PRIMARY KEY,
@@ -113,7 +111,6 @@ func createSampleData() {
 		return
 	}
 
-	// Check if products already exist
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM products").Scan(&count)
 	if err != nil {
@@ -126,7 +123,6 @@ func createSampleData() {
 		return
 	}
 
-	// Insert sample products
 	sampleProducts := []Product{
 		{Name: "Laptop Pro 15", Description: "High-performance laptop with 16GB RAM and 512GB SSD", Price: 1299.99, Quantity: 25, Category: "Electronics"},
 		{Name: "Wireless Headphones", Description: "Noise-cancelling wireless headphones with 30h battery life", Price: 199.99, Quantity: 50, Category: "Electronics"},
@@ -139,7 +135,7 @@ func createSampleData() {
 		insertQuery := `
 		INSERT INTO products (name, description, price, quantity, category) 
 		VALUES (?, ?, ?, ?, ?)`
-		
+
 		_, err := db.Exec(insertQuery, product.Name, product.Description, product.Price, product.Quantity, product.Category)
 		if err != nil {
 			log.Printf("Error inserting product %s: %v", product.Name, err)
@@ -152,7 +148,6 @@ func createSampleData() {
 // getAllProducts retrieves all products from database or returns mock data
 func getAllProducts() ([]Product, error) {
 	if db == nil {
-		// Return mock data if no database connection
 		return getMockProducts(), nil
 	}
 
@@ -167,13 +162,13 @@ func getAllProducts() ([]Product, error) {
 	for rows.Next() {
 		var product Product
 		var createdAt, updatedAt time.Time
-		
-		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, 
+
+		err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price,
 			&product.Quantity, &product.Category, &createdAt, &updatedAt)
 		if err != nil {
 			return getMockProducts(), err
 		}
-		
+
 		product.CreatedAt = createdAt.Format("2006-01-02T15:04:05.000000Z")
 		product.UpdatedAt = updatedAt.Format("2006-01-02T15:04:05.000000Z")
 		products = append(products, product)
@@ -185,7 +180,6 @@ func getAllProducts() ([]Product, error) {
 // getProductByID retrieves a specific product by ID
 func getProductByID(id int) (*Product, error) {
 	if db == nil {
-		// Return mock data if no database connection
 		mockProducts := getMockProducts()
 		for _, product := range mockProducts {
 			if product.ID == id {
@@ -200,8 +194,8 @@ func getProductByID(id int) (*Product, error) {
 
 	var product Product
 	var createdAt, updatedAt time.Time
-	
-	err := row.Scan(&product.ID, &product.Name, &product.Description, &product.Price, 
+
+	err := row.Scan(&product.ID, &product.Name, &product.Description, &product.Price,
 		&product.Quantity, &product.Category, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -209,7 +203,7 @@ func getProductByID(id int) (*Product, error) {
 		}
 		return nil, err
 	}
-	
+
 	product.CreatedAt = createdAt.Format("2006-01-02T15:04:05.000000Z")
 	product.UpdatedAt = updatedAt.Format("2006-01-02T15:04:05.000000Z")
 
@@ -280,7 +274,6 @@ func productHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/products/")
 	id, err := strconv.Atoi(path)
 	if err != nil {
@@ -331,7 +324,12 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		Message: "Go Products API is running",
 		Data: map[string]string{
 			"endpoints": "GET /api/products, GET /api/products/{id}",
-			"database":  func() string { if db != nil { return "MySQL connected" } else { return "Using mock data" } }(),
+			"database": func() string {
+				if db != nil {
+					return "MySQL connected"
+				}
+				return "Using mock data"
+			}(),
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -339,23 +337,36 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	// Initialize database connection
+	applyVaultSecrets()
 	initDB()
-	
-	// Create sample data if database is connected
 	createSampleData()
 
-	// Set up routes
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/api/products", productsHandler)
-	http.HandleFunc("/api/products/", productHandler) // Handle /api/products/{id}
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", metricsHandler())
+	mux.HandleFunc("/", homeHandler)
+	mux.HandleFunc("/api/products", productsHandler)
+	mux.HandleFunc("/api/products/", productHandler)
+
+	// CORS Middleware agar bisa diakses dari Frontend (http://app.sotar.local)
+	corsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "http://app.sotar.local")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		instrumentHandler(mux).ServeHTTP(w, r)
+	})
 
 	log.Println("Go Products API Server is running on http://localhost:8080")
 	log.Println("Endpoints:")
 	log.Println("  GET /api/products     - Get all products")
 	log.Println("  GET /api/products/{id} - Get product by ID")
-	
-	err := http.ListenAndServe(":8080", nil)
+
+	err := http.ListenAndServe(":8080", corsHandler)
 	if err != nil {
 		log.Fatalf("Server failed: %s", err)
 	}

@@ -19,6 +19,8 @@ data:
   DB_PORT: "3306"
   DB_DATABASE: "laravel"
   DB_USERNAME: "root"
+  VAULT_ADDR: "http://vault-service:8200"
+  VAULT_ROLE: "laravel-app"
   CACHE_DRIVER: "file"
   SESSION_DRIVER: "file"
   QUEUE_CONNECTION: "sync"
@@ -43,6 +45,7 @@ data:
   DB_NAME: "laravel"
   DB_USER: "root"
   VAULT_ADDR: "http://vault-service:8200"
+  VAULT_ROLE: "golang-app"
 
 ---
 # ============================================================

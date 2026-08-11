@@ -11,7 +11,7 @@ metadata:
     app.kubernetes.io/name: laravel
     app.kubernetes.io/component: backend
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -31,10 +31,50 @@ spec:
         prometheus.io/port: "8001" 
         prometheus.io/path: "/metrics"
     spec:
-      # (Init container dimatikan karena tabel users sudah ada)
-      # initContainers:
-      #   - name: laravel-migrate
-      #     ...
+      serviceAccountName: vault-auth
+      # ---- INIT CONTAINER: Tunggu DB siap lalu migrate fresh & seed ----
+      initContainers:
+        - name: laravel-migrate
+          image: sotar12/laravel:latest
+          imagePullPolicy: Always
+          workingDir: /var/www/html
+          command: 
+            - "sh"
+            - "-c"
+            - |
+              echo "Menunggu database MySQL siap..."
+              until php -r "try { new PDO('mysql:host=mysql-service;dbname=laravel', 'root', getenv('DB_PASSWORD')); echo 'Koneksi Berhasil'; } catch (\Exception \$e) { exit(1); }"; do
+                sleep 3
+              done
+              echo "Database siap, menjalankan migrasi..."
+              php artisan migrate:fresh --seed --force
+          envFrom:
+            - configMapRef:
+                name: laravel-config
+          env:
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secret
+                  key: APP_KEY
+            - name: DB_USERNAME
+              value: "root"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: laravel-secret
+                  key: DB_PASSWORD
+                  optional: true
+            - name: VAULT_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: VAULT_ADDR
+            - name: VAULT_ROLE
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: VAULT_ROLE
 
       containers:
         - name: laravel
@@ -52,11 +92,24 @@ spec:
                 secretKeyRef:
                   name: laravel-secret
                   key: APP_KEY
+            - name: DB_USERNAME
+              value: "root"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: laravel-secret
                   key: DB_PASSWORD
+                  optional: true
+            - name: VAULT_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: VAULT_ADDR
+            - name: VAULT_ROLE
+              valueFrom:
+                configMapKeyRef:
+                  name: laravel-config
+                  key: VAULT_ROLE
           resources:
             requests:
               cpu: 200m
@@ -66,7 +119,7 @@ spec:
               memory: 512Mi
           livenessProbe:
             httpGet:
-              path: /
+              path: /api/products
               port: 8001
             initialDelaySeconds: 30
             periodSeconds: 20
@@ -74,23 +127,12 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/products
               port: 8001
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
-          
-          # PERBAIKAN: Mematikan volumeMounts agar folder bawaan Docker tidak terhapus
-          # volumeMounts:
-          #   - name: laravel-storage
-          #     mountPath: /var/www/html/storage
-
-      # PERBAIKAN: Mematikan emptyDir volume
-      # volumes:
-      #   - name: laravel-storage
-      #     emptyDir: {}
-      
       restartPolicy: Always
 
 ---

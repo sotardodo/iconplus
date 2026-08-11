@@ -31,8 +31,6 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
-        vault.hashicorp.com/agent-inject: "true"
-        vault.hashicorp.com/role: "golang-app"
     spec:
       serviceAccountName: vault-auth
       containers:
@@ -51,8 +49,11 @@ spec:
                 secretKeyRef:
                   name: mysql-secret
                   key: MYSQL_PASSWORD
+                  optional: true
             - name: VAULT_ADDR
               value: "http://vault-service:8200"
+            - name: VAULT_ROLE
+              value: "golang-app"
           resources:
             requests:
               cpu: 100m
